@@ -66,3 +66,7 @@ unwatching repos.
 - Run it by hand to see errors: `~/.local/bin/gh-notifier`
 - Check the agent: `launchctl print gui/$(id -u)/local.gh-notifier | grep -E 'state|last exit'`
 - To change the 2-minute interval, edit `interval` in `install.sh` and re-run it.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
