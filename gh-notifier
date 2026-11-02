@@ -16,21 +16,24 @@ mkdir -p "$state_dir"
 esc() { case $1 in [\[\(\{\<\"\'-]*) printf '\\%s' "$1" ;; *) printf '%s' "$1" ;; esac; }
 
 current=$(gh api 'notifications?per_page=50' --jq '
-  .[] | select(.subject.type == "PullRequest")
+  .[] | select(.subject.type == "PullRequest" and .subject.url != null)
   | [ .id + "@" + .updated_at,
       .id,
       (.reason | gsub("_"; " ")),
       .repository.full_name,
       .subject.title,
-      ((.subject.url // .repository.url)
-        | sub("://api.github.com/repos/"; "://github.com/")
-        | sub("/pulls/"; "/pull/")) ]
+      .subject.url ]
   | @tsv')
 
 if [[ -f "$seen" ]]; then
-  while IFS=$'\t' read -r key id reason repo title url; do
+  while IFS=$'\t' read -r key id reason repo title api_url; do
     [[ -z "$key" ]] && continue
     grep -qxF "$key" "$seen" && continue
+    # Like the PR inbox page, only open PRs count: skip activity such as a merge or close.
+    # A failed lookup aborts the run before state is saved, so the next run retries it.
+    pr=$(gh api "$api_url" --jq '[.state, .html_url] | @tsv')
+    IFS=$'\t' read -r pr_state url <<< "$pr"
+    [[ "$pr_state" == open ]] || continue
     # -group: a newer notification for the same PR replaces the older one.
     terminal-notifier -title "$repo" -subtitle "$reason" -message "$(esc "$title")" \
       -open "$url" -group "gh-notifier-$id" >/dev/null

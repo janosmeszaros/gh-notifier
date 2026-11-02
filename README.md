@@ -43,6 +43,8 @@ A launchd agent runs `gh-notifier` every 2 minutes. Each run:
    request ones. CI runs and issues are left out.
 2. Shows a notification for each PR that is new or has new activity since the last run.
    A newer notification for the same PR replaces the older one.
+3. Like GitHub's PR inbox page, it only counts open PRs. Activity on merged or closed PRs,
+   including the merge itself, doesn't produce a notification.
 
 On the first run it only records what's already unread, so you don't get flooded.
 Once you read an item on GitHub, it no longer counts. New activity on that PR makes it
