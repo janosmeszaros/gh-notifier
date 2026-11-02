@@ -1,0 +1,40 @@
+#!/bin/bash
+# gh-notifier: show a macOS notification for each new or updated unread pull request
+# notification on GitHub. Clicking a notification opens the PR in the browser.
+#
+# State: the "thread-id@updated_at" keys seen on the previous run. A key that wasn't there
+# before is a new item or new activity on a PR. The first run only records state, so you
+# don't get one notification for every item already in your inbox.
+set -euo pipefail
+
+state_dir="$HOME/.local/state/gh-notifier"
+seen="$state_dir/seen"
+mkdir -p "$state_dir"
+
+# terminal-notifier rejects values starting with one of these characters unless escaped
+# with a backslash. PR titles like "[WIP] ..." are common.
+esc() { case $1 in [\[\(\{\<\"\'-]*) printf '\\%s' "$1" ;; *) printf '%s' "$1" ;; esac; }
+
+current=$(gh api 'notifications?per_page=50' --jq '
+  .[] | select(.subject.type == "PullRequest")
+  | [ .id + "@" + .updated_at,
+      .id,
+      (.reason | gsub("_"; " ")),
+      .repository.full_name,
+      .subject.title,
+      ((.subject.url // .repository.url)
+        | sub("://api.github.com/repos/"; "://github.com/")
+        | sub("/pulls/"; "/pull/")) ]
+  | @tsv')
+
+if [[ -f "$seen" ]]; then
+  while IFS=$'\t' read -r key id reason repo title url; do
+    [[ -z "$key" ]] && continue
+    grep -qxF "$key" "$seen" && continue
+    # -group: a newer notification for the same PR replaces the older one.
+    terminal-notifier -title "$repo" -subtitle "$reason" -message "$(esc "$title")" \
+      -open "$url" -group "gh-notifier-$id" >/dev/null
+  done <<< "$current"
+fi
+
+cut -f1 <<< "$current" > "$seen.tmp" && mv "$seen.tmp" "$seen"
