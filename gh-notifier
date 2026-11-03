@@ -17,6 +17,8 @@ seen="$state_dir/seen"
 pending="$state_dir/pending"
 group=gh-notifier
 inbox=https://github.com/pulls/inbox
+# install.sh builds this copy of terminal-notifier with GitHub's logo as its icon.
+notifier="$HOME/.local/share/gh-notifier/gh-notifier.app/Contents/MacOS/terminal-notifier"
 mkdir -p "$state_dir"
 
 # terminal-notifier rejects values starting with one of these characters unless escaped
@@ -24,7 +26,7 @@ mkdir -p "$state_dir"
 esc() { case $1 in [\[\(\{\<\"\'-]*) printf '\\%s' "$1" ;; *) printf '%s' "$1" ;; esac; }
 
 notify() { # title subtitle message url
-  terminal-notifier -title "$(esc "$1")" -subtitle "$(esc "$2")" -message "$(esc "$3")" \
+  "$notifier" -title "$(esc "$1")" -subtitle "$(esc "$2")" -message "$(esc "$3")" \
     -open "$4" -group "$group" >/dev/null
 }
 
@@ -38,7 +40,7 @@ current=$(gh api 'notifications?per_page=50' --jq '
   | @tsv')
 
 # No gh-notifier notification showing: it was clicked or cleared, so start counting afresh.
-terminal-notifier -list "$group" | grep -q . || : > "$pending"
+"$notifier" -list "$group" | grep -q . || : > "$pending"
 
 new=
 if [[ -f "$seen" ]]; then

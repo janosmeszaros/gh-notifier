@@ -17,6 +17,10 @@ fix: retry the upload when the connection drops
 - [terminal-notifier](https://github.com/julienXX/terminal-notifier). `install.sh` installs it
   with Homebrew if it's missing.
 
+macOS always takes a notification's icon from the app that sends it. So `install.sh` builds
+`gh-notifier.app`, a copy of terminal-notifier's app with GitHub's logo as its icon, and
+notifications come from that. The logo is downloaded from GitHub during install.
+
 ## Install
 
 ```sh
@@ -24,8 +28,8 @@ fix: retry the upload when the connection drops
 ```
 
 You get a test notification right away. If macOS asks, allow notifications for
-**terminal-notifier**. If nothing appears, turn them on under
-System Settings → Notifications → terminal-notifier.
+**gh-notifier**. If nothing appears, turn them on under
+System Settings → Notifications → gh-notifier.
 
 To update after changing or pulling a new `gh-notifier`, run `./install.sh` again.
 
@@ -62,8 +66,10 @@ unwatching repos.
 | Path | What |
 | --- | --- |
 | `~/.local/bin/gh-notifier` | installed copy of the script |
+| `~/.local/share/gh-notifier/gh-notifier.app` | app that sends the notifications |
 | `~/Library/LaunchAgents/local.gh-notifier.plist` | launchd agent |
 | `~/.local/state/gh-notifier/seen` | items seen on the last run |
+| `~/.local/state/gh-notifier/pending` | PRs in the notification that's currently showing |
 | `~/.local/state/gh-notifier/error.log` | errors |
 
 ## Troubleshooting
