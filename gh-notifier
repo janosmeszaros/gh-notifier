@@ -1,32 +1,48 @@
 #!/bin/bash
-# gh-notifier: show a macOS notification for each new or updated unread pull request
-# notification on GitHub. Clicking a notification opens the PR in the browser.
+# gh-notifier: show a macOS notification for new activity on open pull requests in your
+# GitHub notifications. Clicking a notification opens the PR in the browser.
 #
-# State: the "thread-id@updated_at" keys seen on the previous run. A key that wasn't there
-# before is a new item or new activity on a PR. The first run only records state, so you
-# don't get one notification for every item already in your inbox.
+# There's at most one gh-notifier notification at a time. Until you click or clear it,
+# newer activity is merged into it as "N pull requests with new activity".
+#
+# State:
+#   seen     "thread-id@updated_at" keys from the previous run. A key that wasn't there
+#            before is a new item or new activity on a PR. The first run only records
+#            state, so you don't get notified about everything already in your inbox.
+#   pending  "url<TAB>title" of the PRs in the notification that's currently showing.
 set -euo pipefail
 
 state_dir="$HOME/.local/state/gh-notifier"
 seen="$state_dir/seen"
+pending="$state_dir/pending"
+group=gh-notifier
+inbox=https://github.com/pulls/inbox
 mkdir -p "$state_dir"
 
 # terminal-notifier rejects values starting with one of these characters unless escaped
 # with a backslash. PR titles like "[WIP] ..." are common.
 esc() { case $1 in [\[\(\{\<\"\'-]*) printf '\\%s' "$1" ;; *) printf '%s' "$1" ;; esac; }
 
+notify() { # title subtitle message url
+  terminal-notifier -title "$(esc "$1")" -subtitle "$(esc "$2")" -message "$(esc "$3")" \
+    -open "$4" -group "$group" >/dev/null
+}
+
 current=$(gh api 'notifications?per_page=50' --jq '
   .[] | select(.subject.type == "PullRequest" and .subject.url != null)
   | [ .id + "@" + .updated_at,
-      .id,
       (.reason | gsub("_"; " ")),
       .repository.full_name,
       .subject.title,
       .subject.url ]
   | @tsv')
 
+# No gh-notifier notification showing: it was clicked or cleared, so start counting afresh.
+terminal-notifier -list "$group" | grep -q . || : > "$pending"
+
+new=
 if [[ -f "$seen" ]]; then
-  while IFS=$'\t' read -r key id reason repo title api_url; do
+  while IFS=$'\t' read -r key reason repo title api_url; do
     [[ -z "$key" ]] && continue
     grep -qxF "$key" "$seen" && continue
     # Like the PR inbox page, only open PRs count: skip activity such as a merge or close.
@@ -34,10 +50,21 @@ if [[ -f "$seen" ]]; then
     pr=$(gh api "$api_url" --jq '[.state, .html_url] | @tsv')
     IFS=$'\t' read -r pr_state url <<< "$pr"
     [[ "$pr_state" == open ]] || continue
-    # -group: a newer notification for the same PR replaces the older one.
-    terminal-notifier -title "$repo" -subtitle "$reason" -message "$(esc "$title")" \
-      -open "$url" -group "gh-notifier-$id" >/dev/null
-  done <<< "$current"
+    # Count each PR once, and move it to the end so the latest activity comes last.
+    { grep -vF "$url"$'\t' "$pending" || true; printf '%s\t%s\n' "$url" "$title"; } > "$pending.tmp"
+    mv "$pending.tmp" "$pending"
+    new=1 last_repo=$repo last_reason=$reason last_title=$title last_url=$url
+  done < <(tail -r <<< "$current") # GitHub lists newest first; go oldest first
+fi
+
+if [[ -n "$new" ]]; then
+  count=$(wc -l < "$pending" | tr -d ' ')
+  if (( count == 1 )); then
+    notify "$last_repo" "$last_reason" "$last_title" "$last_url"
+  else
+    latest=$(awk -F'\t' '{ t[NR] = $2 } END { for (i = NR; i > NR - 3 && i > 0; i--) printf "%s%s", (i < NR ? " · " : ""), t[i] }' "$pending")
+    notify "$count pull requests with new activity" "Latest: $last_repo" "$latest" "$inbox"
+  fi
 fi
 
 cut -f1 <<< "$current" > "$seen.tmp" && mv "$seen.tmp" "$seen"

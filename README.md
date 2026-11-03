@@ -41,8 +41,11 @@ A launchd agent runs `gh-notifier` every 2 minutes. Each run:
 
 1. Reads your unread GitHub notifications with `gh api notifications` and keeps only the pull
    request ones. CI runs and issues are left out.
-2. Shows a notification for each PR that is new or has new activity since the last run.
-   A newer notification for the same PR replaces the older one.
+2. Shows a notification for a PR that is new or has new activity since the last run.
+   There's never more than one gh-notifier notification. If more activity arrives before you
+   click or clear it, it turns into "*N* pull requests with new activity", listing the
+   latest titles. Clicking that one opens [your PR inbox](https://github.com/pulls/inbox).
+   Clicking or clearing the notification resets the count.
 3. Like GitHub's PR inbox page, it only counts open PRs. Activity on merged or closed PRs,
    including the merge itself, doesn't produce a notification.
 
